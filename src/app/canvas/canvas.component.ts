@@ -1,6 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { fabric } from 'fabric';
 
+import * as canvasActions from "../store/canvas.actions";
+import { Store } from "@ngrx/store";
+import { take } from "rxjs/operators";
+import { UndoActions } from "ngrx-undo-redo";
+
 @Component({
   selector: 'app-canvas',
   templateUrl: './canvas.component.html',
@@ -10,16 +15,44 @@ export class CanvasComponent implements OnInit {
 
   canvas:any;
   colors:string[]=["red","green","blue","orange","black","yellow"]
-  constructor() { }
+  state = [];
+  mods = 0;
+
+  constructor(private store:Store<any>) { }
 
   ngOnInit(): void {
-    // this.canvas = new fabric.Canvas('canvas');
-    //  this.canvas.add(new fabric.IText('Hello World !'));
+   
+    this.canvas = new fabric.Canvas('canvas',{
+      centeredScaling: true,
+      selection: false,
+      renderOnAddRemove: false,
+      stateful: false,
+      
+    });
+    this.canvas["counter"] = 0;
+   this.updateModifications(true);
+   this.canvas.on("path:created", (x: any) => {
+     console.log('path: ', x);
+
+     this.updateModifications(true);
+   });
   }
   ngAfterViewInit() {
-     this.canvas = new fabric.Canvas('canvas');
+    
     
 }
+
+updateModifications(savehistory:any) {
+  if (savehistory === true) {
+    this.store.dispatch(
+      new canvasActions.UpdateCanvas({ canvas: JSON.stringify(this.canvas) })
+    );
+    // const myjson = JSON.stringify(this.canvas);
+    // this.state.push(myjson);
+  }
+  console.log("updated")
+}
+
 getAdder(offset:number):number{
  return  Math.floor(Math.random() * offset);
 }
@@ -34,7 +67,31 @@ addShape():void{
     fill : color
  });
  this.canvas.add(rect);
+ this.canvas.renderAll();
+ this.updateModifications(true);
+this.canvas["counter"]++;
 
+}
+
+redo() {
+    this.store.dispatch(<UndoActions>{ type: 'REDO_STATE' });
+
+    this.store
+      .select('canvas')
+      .pipe(take(1))
+      .subscribe((x) => {
+        this.canvas.loadFromJSON(x.canvas, () => {});
+      });
+  }
+
+undo() {
+  this.store.dispatch(<UndoActions>{ type: 'UNDO_STATE' });
+  this.store
+    .select('canvas')
+    .pipe(take(1))
+    .subscribe((x) => {
+      this.canvas.loadFromJSON(x.canvas, () => {});
+    });
 }
 
 }
